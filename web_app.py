@@ -175,71 +175,77 @@ class SignPredictor:
                 print(f"Hand area too small: {area}")  # Debug
                 return {"status": "small_hand", "message": "Hand too small or far"}
 
-            # Create mask and extract hand region (following original logic)
+            # Create mask and extract hand region (following original logic exactly)
             mask = np.zeros(thresh.shape, dtype="uint8")
             cv2.drawContours(mask, [max_cont], -1, 255, -1)
             mask = cv2.medianBlur(mask, 5)
+            mask = cv2.addWeighted(mask, 0.5, mask, 0.5, 0.0)  # Key step from original!
             kernel = np.ones((5, 5), np.uint8)
             mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
-
-            # Apply mask to the gray image, not the thresholded one
-            hand = cv2.bitwise_and(gray, gray, mask=thresh)
-
-            # Apply Canny edge detection to the hand (original logic)
-            high_thresh, _ = cv2.threshold(hand, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+            
+            # Step 1: Apply mask to ROI (original colored region), then convert to gray
+            res = cv2.bitwise_and(roi, roi, mask=mask)
+            res = cv2.cvtColor(res, cv2.COLOR_BGR2GRAY)
+            
+            # Step 2: Apply threshold for Canny preparation  
+            high_thresh, thresh_im = cv2.threshold(res, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
             low_thresh = 0.5 * high_thresh
-            edges = cv2.Canny(hand, low_thresh, high_thresh)
+            
+            # Step 3: Apply ORIGINAL thresh to gray image (this is the 'hand' in original)
+            hand = cv2.bitwise_and(gray, gray, mask=thresh)
+            
+            # Step 4: Apply Canny edge detection to the hand (EXACTLY like original)
+            res = cv2.Canny(hand, low_thresh, high_thresh)
+            
+            print(f"Image processing complete - res shape: {res.shape}, unique values: {len(np.unique(res))}")  # Debug
 
-            # CNN prediction
+            # CNN prediction (EXACTLY like original)
             if cnn_model is not None:
-                final_img = cv2.resize(edges, (100, 100))
-                final_img = np.array(final_img)
-                final_img = final_img.reshape((-1, 100, 100, 1))
-                final_img = final_img.astype('float32') / 255.0
+                # Use 'res' exactly like original code
+                final_res = cv2.resize(res, (100, 100))
+                final_res = np.array(final_res)
+                final_res = final_res.reshape((-1, 100, 100, 1))
+                final_res = final_res.astype('float32')  # Remove () like original
+                final_res = final_res / 255.0
 
                 try:
                     # Use TensorFlow session for thread-safe prediction
                     with tf_graph.as_default():
                         with tf_session.as_default():
-                            output = cnn_model.predict(final_img)
+                            output = cnn_model.predict(final_res)
                     prob = np.amax(output)
                     sign_idx = np.argmax(output)
                     predicted_sign = visual_dict[sign_idx]
 
-                    # Confidence threshold - reduced for better detection
-                    if prob * 100 > 80:  # Reduced from 95 to 80
-                        self.count += 1
-                        print(f"High confidence prediction: {predicted_sign} ({prob:.1%}), count: {self.count}")
-                        # Reduced frame requirements for faster response
-                        if 5 < self.count <= 20:  # Changed from 10-50 to 5-20
+                    # Use original confidence and counting logic
+                    self.count += 1
+                    if 10 < self.count <= 50:  # Original range
+                        if prob * 100 > 95:  # Original confidence threshold
                             self.result_list.append(predicted_sign)
-                        elif self.count > 20:  # Changed from 50 to 20
-                            self.count = 0
-                            if len(self.result_list):
-                                final_prediction = max(set(self.result_list), key=self.result_list.count)
-                                self.result_list = []
-
-                                if self.prev_sign != final_prediction:
-                                    self.prev_sign = final_prediction
-                                    print(f"FINAL PREDICTION: {final_prediction} - will trigger TTS")  # Debug
-                                    return {
-                                        "status": "success",
-                                        "sign": final_prediction,
-                                        "confidence": prob * 100,
-                                        "speak": True
-                                    }
-                                else:
-                                    print(f"Same sign as previous: {final_prediction} - no TTS")  # Debug
-                                    return {
-                                        "status": "repeat",
-                                        "sign": final_prediction,
-                                        "confidence": prob * 100,
-                                        "speak": False
-                                    }
-                    else:
-                        # Reset count if confidence drops
+                            print(f"Added to result_list: {predicted_sign} ({prob:.1%})")
+                    elif self.count > 50:  # Original frame count
                         self.count = 0
-                        self.result_list = []
+                        if len(self.result_list):
+                            final_prediction = max(set(self.result_list), key=self.result_list.count)
+                            self.result_list = []
+
+                            if self.prev_sign != final_prediction:
+                                self.prev_sign = final_prediction
+                                print(f"FINAL PREDICTION: {final_prediction} - will trigger TTS")  # Debug
+                                return {
+                                    "status": "success",
+                                    "sign": final_prediction,
+                                    "confidence": prob * 100,
+                                    "speak": True
+                                }
+                            else:
+                                print(f"Same sign as previous: {final_prediction} - no TTS")  # Debug
+                                return {
+                                    "status": "repeat",
+                                    "sign": final_prediction,
+                                    "confidence": prob * 100,
+                                    "speak": False
+                                }
 
                     return {
                         "status": "detecting",
