@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ISL Recognition - Web App</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizin                <div class="control-group">
+                    <h3>Language Selection</h3>
+                    <select id="languageSelect" onchange="changeLanguage()">
+                        <option value="English">English</option>
+                        <option value="Hindi">Hindi (हिंदी)</option>
+                        <option value="Telugu">Telugu (తెలుగు)</option>
+                        <option value="Tamil">Tamil (தமிழ்)</option>
+                        <option value="Malayalam">Malayalam (മലയാളം)</option>
+                        <option value="Kannada">Kannada (ಕನ್ನಡ)</option>
+                        <option value="Bengali">Bengali (বাংলা)</option>
+                        <option value="Marathi">Marathi (मराठी)</option>
+                    </select>
+                    <button class="btn" onclick="testTTS()" style="margin-top: 10px;">Test Voice</button>
+                </div>;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            max-width: 900px;
+            width: 90%;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            color: #333;
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            color: #666;
+            font-size: 1.1rem;
+        }
+
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 300px;
+            gap: 30px;
+            align-items: start;
+        }
+
+        .video-section {
+            position: relative;
+        }
+
+        #videoElement {
+            width: 100%;
+            max-width: 500px;
+            height: auto;
+            border-radius: 15px;
+            border: 3px solid #667eea;
+        }
+
+        .roi-overlay {
+            position: absolute;
+            border: 3px solid #ff6b6b;
+            border-radius: 10px;
+            top: 20%;
+            left: 25%;
+            width: 50%;
+            height: 40%;
+            pointer-events: none;
+            background: rgba(255, 107, 107, 0.1);
+        }
+
+        .roi-label {
+            position: absolute;
+            top: -30px;
+            left: 0;
+            background: #ff6b6b;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .controls {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .control-group {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 15px;
+            border: 2px solid #e9ecef;
+        }
+
+        .control-group h3 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 1.2rem;
+        }
+
+        .btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: bold;
+            transition: all 0.3s ease;
+            width: 100%;
+        }
+
+        .btn:hover {
+            background: #5a6fd8;
+            transform: translateY(-2px);
+        }
+
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn.danger {
+            background: #ff6b6b;
+        }
+
+        .btn.danger:hover {
+            background: #ff5252;
+        }
+
+        select {
+            width: 100%;
+            padding: 12px;
+            border-radius: 10px;
+            border: 2px solid #e9ecef;
+            font-size: 1rem;
+            background: white;
+            cursor: pointer;
+        }
+
+        select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .prediction-display {
+            text-align: center;
+            padding: 20px;
+            background: linear-gradient(135deg, #4CAF50, #45a049);
+            border-radius: 15px;
+            color: white;
+            margin-bottom: 20px;
+        }
+
+        .prediction-display h2 {
+            font-size: 3rem;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .confidence {
+            font-size: 1.2rem;
+            opacity: 0.9;
+        }
+
+        .status {
+            background: #e3f2fd;
+            color: #1976d2;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            text-align: center;
+            font-weight: bold;
+            border-left: 4px solid #1976d2;
+        }
+
+        .status.error {
+            background: #ffebee;
+            color: #c62828;
+            border-left-color: #c62828;
+        }
+
+        .status.success {
+            background: #e8f5e8;
+            color: #2e7d32;
+            border-left-color: #2e7d32;
+        }
+
+        .instructions {
+            background: #fff3e0;
+            color: #ef6c00;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            border-left: 4px solid #ef6c00;
+        }
+
+        .instructions ul {
+            margin-left: 20px;
+            margin-top: 10px;
+        }
+
+        .instructions li {
+            margin-bottom: 5px;
+        }
+
+        @media (max-width: 768px) {
+            .main-content {
+                grid-template-columns: 1fr;
+            }
+            
+            .header h1 {
+                font-size: 2rem;
+            }
+            
+            .container {
+                padding: 20px;
+            }
+        }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #ffffff;
+            border-radius: 50%;
+            border-top-color: transparent;
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🤟 ISL Recognition</h1>
+            <p>Real-time Indian Sign Language Recognition with Multilingual Speech Output</p>
+        </div>
+
+        <div class="main-content">
+            <div class="video-section">
+                <video id="videoElement" autoplay muted playsinline></video>
+                <div class="roi-overlay">
+                    <div class="roi-label">Place hand here</div>
+                </div>
+                <canvas id="canvas" style="display: none;"></canvas>
+            </div>
+
+            <div class="controls">
+                <div class="prediction-display" id="predictionDisplay">
+                    <h2 id="predictedSign">-</h2>
+                    <div class="confidence" id="confidence">Confidence: 0%</div>
+                </div>
+
+                <div class="status" id="statusDisplay">
+                    Click "Start Recognition" to begin
+                </div>
+
+                <div class="instructions">
+                    <strong>Instructions:</strong>
+                    <ul>
+                        <li>Allow camera access when prompted</li>
+                        <li>Place your hand in the red rectangle</li>
+                        <li>Hold the sign steady for recognition</li>
+                        <li>Select your preferred language below</li>
+                    </ul>
+                </div>
+
+                <div class="control-group">
+                    <h3>Camera Control</h3>
+                    <button class="btn" id="startBtn" onclick="startRecognition()">Start Recognition</button>
+                    <button class="btn danger" id="stopBtn" onclick="stopRecognition()" disabled>Stop Recognition</button>
+                    <button class="btn" id="resetBtn" onclick="resetSystem()">Reset System</button>
+                </div>
+
+                <div class="control-group">
+                    <h3>Language Selection</h3>
+                    <select id="languageSelect" onchange="changeLanguage()">
+                        <option value="English">English</option>
+                        <option value="Hindi">Hindi (हिंदी)</option>
+                        <option value="Telugu">Telugu (తెలుగు)</option>
+                        <option value="Tamil">Tamil (தமிழ்)</option>
+                        <option value="Malayalam">Malayalam (മലയാളം)</option>
+                        <option value="Kannada">Kannada (ಕನ್ನಡ)</option>
+                        <option value="Bengali">Bengali (বাংলা)</option>
+                        <option value="Marathi">Marathi (मराठी)</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let videoElement;
+        let canvas;
+        let ctx;
+        let isRecognitionActive = false;
+        let predictionInterval;
+        let currentLanguage = 'English';
+
+        // Initialize the application
+        window.onload = function() {
+            videoElement = document.getElementById('videoElement');
+            canvas = document.getElementById('canvas');
+            ctx = canvas.getContext('2d');
+            
+            // Load available languages
+            loadLanguages();
+        };
+
+        async function loadLanguages() {
+            try {
+                const response = await fetch('/languages');
+                const data = await response.json();
+                const select = document.getElementById('languageSelect');
+                
+                // Clear existing options
+                select.innerHTML = '';
+                
+                // Add language options
+                data.languages.forEach(lang => {
+                    const option = document.createElement('option');
+                    option.value = lang;
+                    option.textContent = lang;
+                    select.appendChild(option);
+                });
+            } catch (error) {
+                console.error('Error loading languages:', error);
+            }
+        }
+
+        async function startRecognition() {
+            try {
+                // Request camera access
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { 
+                        width: 640, 
+                        height: 480,
+                        facingMode: 'user'
+                    } 
+                });
+                
+                videoElement.srcObject = stream;
+                
+                // Wait for video to load
+                videoElement.onloadedmetadata = () => {
+                    canvas.width = videoElement.videoWidth;
+                    canvas.height = videoElement.videoHeight;
+                    
+                    isRecognitionActive = true;
+                    document.getElementById('startBtn').disabled = true;
+                    document.getElementById('stopBtn').disabled = false;
+                    
+                    updateStatus('Camera started. Calibrating background...', 'success');
+                    
+                    // Start prediction loop
+                    predictionInterval = setInterval(predictSign, 500); // Predict every 500ms
+                };
+                
+            } catch (error) {
+                console.error('Error accessing camera:', error);
+                updateStatus('Error: Could not access camera. Please check permissions.', 'error');
+            }
+        }
+
+        function stopRecognition() {
+            isRecognitionActive = false;
+            
+            // Stop camera stream
+            if (videoElement.srcObject) {
+                const tracks = videoElement.srcObject.getTracks();
+                tracks.forEach(track => track.stop());
+                videoElement.srcObject = null;
+            }
+            
+            // Clear prediction interval
+            if (predictionInterval) {
+                clearInterval(predictionInterval);
+            }
+            
+            document.getElementById('startBtn').disabled = false;
+            document.getElementById('stopBtn').disabled = true;
+            
+            updateStatus('Recognition stopped', '');
+            document.getElementById('predictedSign').textContent = '-';
+            document.getElementById('confidence').textContent = 'Confidence: 0%';
+        }
+
+        async function predictSign() {
+            if (!isRecognitionActive || !videoElement.videoWidth) return;
+            
+            try {
+                // Capture frame from video
+                ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+                const frameData = canvas.toDataURL('image/jpeg', 0.8);
+                
+                // Calculate ROI coordinates based on overlay position
+                const roiX = Math.floor(canvas.width * 0.25);
+                const roiY = Math.floor(canvas.height * 0.2);
+                const roiW = Math.floor(canvas.width * 0.5);
+                const roiH = Math.floor(canvas.height * 0.4);
+                
+                // Send frame for prediction
+                const response = await fetch('/predict', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        frame: frameData,
+                        roi: [roiX, roiY, roiW, roiH]
+                    })
+                });
+                
+                const result = await response.json();
+                handlePredictionResult(result);
+                
+            } catch (error) {
+                console.error('Prediction error:', error);
+                updateStatus('Prediction error: ' + error.message, 'error');
+            }
+        }
+
+        function handlePredictionResult(result) {
+            const statusElement = document.getElementById('statusDisplay');
+            const signElement = document.getElementById('predictedSign');
+            const confidenceElement = document.getElementById('confidence');
+            
+            switch (result.status) {
+                case 'calibrating':
+                    updateStatus(result.message, '');
+                    break;
+                    
+                case 'no_hand':
+                    updateStatus('Place your hand in the red rectangle', '');
+                    signElement.textContent = '-';
+                    confidenceElement.textContent = 'Confidence: 0%';
+                    break;
+                    
+                case 'small_hand':
+                    updateStatus('Move your hand closer to the camera', '');
+                    break;
+                    
+                case 'detecting':
+                    updateStatus('Detecting sign...', '');
+                    signElement.textContent = result.sign.toUpperCase();
+                    confidenceElement.textContent = `Confidence: ${Math.round(result.confidence)}%`;
+                    break;
+                    
+                case 'success':
+                    updateStatus(`Recognized: ${result.sign.toUpperCase()}`, 'success');
+                    signElement.textContent = result.sign.toUpperCase();
+                    confidenceElement.textContent = `Confidence: ${Math.round(result.confidence)}%`;
+                    
+                    console.log('Success result:', result);  // Debug
+                    if (result.speak) {
+                        console.log('Calling speakSign for:', result.sign);  // Debug
+                        speakSign(result.sign);
+                    } else {
+                        console.log('speak is false, not calling TTS');  // Debug
+                    }
+                    break;
+                    
+                case 'error':
+                    updateStatus('Error: ' + result.message, 'error');
+                    break;
+            }
+        }
+
+        async function speakSign(sign) {
+            try {
+                console.log('speakSign called with:', sign, 'language:', currentLanguage);  // Debug
+                const response = await fetch('/speak', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        text: sign,
+                        language: currentLanguage
+                    })
+                });
+                
+                const result = await response.json();
+                console.log('TTS response:', result);  // Debug
+                if (result.status !== 'success') {
+                    console.error('TTS error:', result.message);
+                }
+            } catch (error) {
+                console.error('Error calling TTS:', error);
+            }
+        }
+
+        // Test TTS function
+        async function testTTS() {
+            console.log('Testing TTS with current language:', currentLanguage);
+            await speakSign('hello');
+        }
+
+        function changeLanguage() {
+            currentLanguage = document.getElementById('languageSelect').value;
+            updateStatus(`Language changed to ${currentLanguage}`, 'success');
+        }
+
+        async function resetSystem() {
+            try {
+                const response = await fetch('/reset');
+                const result = await response.json();
+                
+                if (result.status === 'success') {
+                    updateStatus('System reset successfully', 'success');
+                    document.getElementById('predictedSign').textContent = '-';
+                    document.getElementById('confidence').textContent = 'Confidence: 0%';
+                }
+            } catch (error) {
+                console.error('Reset error:', error);
+                updateStatus('Error resetting system', 'error');
+            }
+        }
+
+        function updateStatus(message, type) {
+            const statusElement = document.getElementById('statusDisplay');
+            statusElement.textContent = message;
+            statusElement.className = 'status ' + type;
+        }
+
+        // Handle page unload to clean up camera
+        window.addEventListener('beforeunload', function() {
+            if (videoElement && videoElement.srcObject) {
+                const tracks = videoElement.srcObject.getTracks();
+                tracks.forEach(track => track.stop());
+            }
+        });
+    </script>
+</body>
+</html>
