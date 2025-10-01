@@ -1,0 +1,8 @@
+# Additional packages needed for multilingual TTS support
+# Add these to your existing requirements.txt or install them separately
+
+gTTS==2.1.1
+pygame==2.0.1
+
+# Note: gTTS requires internet connection for multilingual support
+# pygame is used for audio playback of gTTS generated audio files
